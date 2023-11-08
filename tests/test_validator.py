@@ -1,4 +1,4 @@
-from challtools.validator import ConfigValidator
+from challtools.validator import ConfigValidator, CTFValidator
 
 
 def get_min_valid_config():
@@ -68,3 +68,87 @@ class Test_A006:
 
         assert success
         assert any([error["code"] == "A006" for error in errors])
+
+
+class Test_B005:
+    def test_valid(self):
+        config1 = get_min_valid_config()
+        config1["challenge_id"] = "0001"
+
+        config2 = get_min_valid_config()
+        config2["challenge_id"] = "0002"
+        validator = CTFValidator({}, [config1, config2], ["", ""])
+
+        success, errors = validator.validate()
+
+        assert success
+        assert not any([error["code"] == "B005" for error in errors])
+
+    def test_invalid(self):
+        config1 = get_min_valid_config()
+        config1["challenge_id"] = "0001"
+
+        config2 = get_min_valid_config()
+        config2["challenge_id"] = "0001"
+        validator = CTFValidator({}, [config1, config2], ["", ""])
+
+        success, errors = validator.validate()
+
+        assert success
+        assert any([error["code"] == "B005" for error in errors])
+
+
+class Test_B006:
+    def test_valid(self):
+        config1 = get_min_valid_config()
+        config1["title"] = "chall title"
+
+        config2 = get_min_valid_config()
+        config2["title"] = "different chall title"
+        validator = CTFValidator({}, [config1, config2], ["", ""])
+
+        success, errors = validator.validate()
+
+        assert success
+        assert not any([error["code"] == "B006" for error in errors])
+
+    def test_invalid(self):
+        config1 = get_min_valid_config()
+        config1["title"] = "chall title"
+
+        config2 = get_min_valid_config()
+        config2["title"] = "chall title"
+        validator = CTFValidator({}, [config1, config2], ["", ""])
+
+        success, errors = validator.validate()
+
+        assert success
+        assert any([error["code"] == "B006" for error in errors])
+
+
+class Test_B007:
+    def test_valid(self):
+        config1 = get_min_valid_config()
+        config1["flags"] = [{"type": "text", "flag": "f14g"}]
+
+        config2 = get_min_valid_config()
+        config2["flags"] = [{"type": "text", "flag": "d1ff3r3nt_f14g"}]
+        validator = CTFValidator({}, [config1, config2], ["", ""])
+
+        success, errors = validator.validate()
+
+        assert success
+        assert not any([error["code"] == "B007" for error in errors])
+
+    def test_invalid(self):
+        config1 = get_min_valid_config()
+        config1["flags"] = [{"type": "text", "flag": "f14g"}]
+
+        config2 = get_min_valid_config()
+        config2["flags"] = [{"type": "text", "flag": "f14g"}]
+        validator = CTFValidator({}, [config1, config2], ["", ""])
+
+        success, errors = validator.validate()
+
+        assert success
+        assert any([error["code"] == "B007" for error in errors])
