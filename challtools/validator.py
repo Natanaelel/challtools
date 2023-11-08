@@ -248,3 +248,86 @@ class ConfigValidator:
                 ),
             }
         )
+
+
+class CTFValidator:
+    def __init__(self, ctf_config, challenge_configs, challenge_paths):
+        self.ctf_config = ctf_config
+        self.challenge_configs = challenge_configs
+        self.challenge_paths = challenge_paths
+        self.messages = []
+
+    def validate(self):
+        # B005 duplicate challenge ids
+        challenge_ids = dict()
+        for config, path in zip(self.challenge_configs, self.challenge_paths):
+            if "challenge_id" in config:
+                challenge_id = config["challenge_id"]
+                if challenge_id in challenge_ids:
+                    self._raise_code(
+                        "B005",
+                        "challenge_id",
+                        id=challenge_id,
+                        challenges=str(path) + ", " + str(challenge_ids[challenge_id]),
+                    )
+                challenge_ids[challenge_id] = path
+
+        # B006 duplicate challenge titles
+        challenge_titles = dict()
+        for config, path in zip(self.challenge_configs, self.challenge_paths):
+            if "title" in config:
+                challenge_title = config["title"]
+                if challenge_title in challenge_titles:
+                    self._raise_code(
+                        "B006",
+                        "title",
+                        title=challenge_title,
+                        challenges=str(path)
+                        + ", "
+                        + str(challenge_titles[challenge_title]),
+                    )
+                challenge_titles[challenge_title] = path
+
+        # B007 duplicate flags
+        challenge_flags = dict()
+        for config, path in zip(self.challenge_configs, self.challenge_paths):
+            if "flags" in config:
+                flags = config["flags"]
+                if isinstance(flags, str):
+                    flags = [{"flag": flags, "type": "text"}]
+                for challenge_flag in flags:
+                    flag = challenge_flag["flag"]
+                    if flag in challenge_flags:
+                        self._raise_code(
+                            "B007",
+                            "flags",
+                            flag=flag,
+                            challenges=str(path) + ", " + str(challenge_flags[flag]),
+                        )
+                    challenge_flags[flag] = path
+
+        return True, self.messages
+
+    def _raise_code(self, code, field=None, **formatting):
+        """Adds a formatted message entry into the messages array.
+
+        Args:
+            code (*str*): The code to raise
+            field (*str, None*): The exact name of the field to associate with this message if it exists, else None
+            **formatting: Arguments used to format the ``formatted_message`` from codes.yml using pythons ``str.format()``. ``field_name`` is always formatted using the value from the field argument.
+        """
+
+        if code not in codes:
+            raise ValueError("The specified code doesn't exist")
+
+        self.messages.append(
+            {
+                "code": code,
+                "field": field,
+                "name": codes[code]["name"],
+                "level": codes[code]["level"],
+                "message": codes[code]["formatted_message"].format(
+                    field_name=field, **formatting
+                ),
+            }
+        )

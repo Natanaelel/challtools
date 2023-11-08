@@ -14,7 +14,7 @@ import requests
 import yaml
 import docker
 import argcomplete
-from .validator import ConfigValidator, is_url
+from .validator import ConfigValidator, CTFValidator, is_url
 from .utils import (
     CriticalException,
     process_messages,
@@ -70,6 +70,12 @@ def main(passed_args=None):
         type=int,
         default=5,
         help="If a validation message with this level or above is raised, the command exits with exit code 1",
+    )
+    validate_parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Validates all challenges in this ctf",
     )
     validate_parser.set_defaults(func=validate)
 
@@ -211,6 +217,9 @@ def allchalls(args):
 
 
 def validate(args):
+    if args.all:
+        args.all = False
+        return validate_all(args)
 
     config = load_config()
 
@@ -218,6 +227,78 @@ def validate(args):
         config, ctf_config=load_ctf_config(), challdir=Path(".")
     )
     messages = validator.validate()[1]
+
+    processed = process_messages(messages, verbose=args.verbose)
+
+    if processed["highest_level"]:
+        print("\n".join(processed["message_strings"]))
+    print(processed["count_string"])
+    if processed["highest_level"] and not args.verbose:
+        print("Run with -v for detailed descriptions")
+
+    status = "failed" if processed["highest_level"] >= args.error_level else "succeeded"
+    level_intro_colors = [
+        SUCCESS,
+        SUCCESS,
+        SUCCESS,
+        HIGH,
+        HIGH,
+        CRITICAL,
+    ]
+    color = level_intro_colors[processed["highest_level"]]
+    if processed["highest_level"] >= args.error_level:
+        color = CRITICAL
+
+    level_messages = [
+        "No issues detected!",
+        "",
+        "",
+        "You may want to investigate some of the issues.",
+        "You should fix errors of high severity.",
+        "Please fix the critical errors.",
+    ]
+
+    print(
+        f"{color}Validation {status}. "
+        + level_messages[processed["highest_level"]]
+        + CLEAR
+    )
+    if processed["highest_level"] >= args.error_level:
+        return 1
+
+    return 0
+
+
+def validate_all(args):
+    if get_ctf_config_path() == None:
+        raise CriticalException(
+            "No CTF configuration file (ctf.yml) detected in the current directory or any parent directory, and therefore cannot discover challenges."
+        )
+
+    failed = False
+    for path in discover_challenges():
+        print(f"{BOLD}Running validate on {path}{CLEAR}")
+        os.chdir(path.parent)
+
+        try:
+            exit_code = validate(args)
+        except CriticalException as e:
+            print(CRITICAL + e.args[0] + CLEAR)
+            exit_code = 1
+
+        if exit_code:
+            failed = True
+
+    if failed:
+        return 1
+
+    print(f"{BOLD}Validating CTF on {get_ctf_config_path().parent}/{CLEAR}")
+
+    success, messages = CTFValidator(
+        load_ctf_config(),
+        [load_config(path) for path in discover_challenges()],
+        discover_challenges(),
+    ).validate()
 
     processed = process_messages(messages, verbose=args.verbose)
 
@@ -491,7 +572,6 @@ def push(args):
         if not config["downloadable_files"]:
             print(f"{BOLD}No files defined, nothing to upload{CLEAR}")
         else:
-
             if not ctf_config.get("custom", {}).get("bucket"):
                 raise CriticalException(
                     "Bucket not configured in the CTF configuration file"
@@ -630,7 +710,6 @@ def push(args):
 
 
 def init(args):
-
     if args.list:
         for template_path in Path(
             pkg_resources.resource_filename("challtools", "templates")
